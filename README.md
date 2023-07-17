@@ -1,0 +1,2 @@
+# Leekiller
+Trading bot
