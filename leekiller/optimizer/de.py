@@ -21,8 +21,8 @@ class DE:
             self.control_params_range = control_params_range
         # Generate populations
         self.k = 0  # Number of control parameters
-        for key in self.control_params:
-            self.k += len(self.control_params[key])  
+        for key in self.control_params_range:
+            self.k += len(self.control_params_range[key])  
         self.number_of_populations = self.c * self.k
         self.populations = []
         self._create_populations()
@@ -59,14 +59,14 @@ class DE:
                             self.log_op_objective = update_objective[j]
                             self.log_op_control_param = update_vector[j]
                             np.savez("out-op_control_param.npz", **self.log_op_control_param)
-                            print("# %s/%s iteration, optimized ROI: %.6f%%" %(i+j, itr, self.log_op_objective))
+                            print("# %s/%s iteration, optimized session_win_rate: %.6f%%" %(i+j, itr, self.log_op_objective))
                 np.savez("out.npz", 
                          populations=self.populations,
                          objective=self.log_objective, 
                          control_params=self.log_control_params,
                          op_objective=self.log_op_objective)
                 i = i + batch
-            print('Finish %s iterations, optimized ROI: %.6f%%' %(i, self.log_op_objective))
+            print('Finish %s iterations, optimized session_win_rate: %.6f%%' %(i, self.log_op_objective))
             print('==============================')            
 
     def load_data(self, data_path: str=None):
@@ -170,6 +170,7 @@ class DE:
         di_vector = self.populations[di_index]
         di_objective = self.get_objective_value(di_vector)
         ci_objective = self.get_objective_value(ci_vector)
+        print("di_obj: %.6f, ci_obj: %.6f" %(di_objective, ci_objective))
         update = False
         update_vector = None
         update_objective = None

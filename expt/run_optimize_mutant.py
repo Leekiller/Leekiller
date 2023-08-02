@@ -40,6 +40,7 @@ class Optimizer(DE):
         """Test print"""
         trade_reports = []
         roi = []
+        session_win = 0
         total_sessions = 10
         init_protfolio_value = 100000.0
         for i in range(total_sessions):
@@ -73,17 +74,20 @@ class Optimizer(DE):
             key = 'pnl'
             if current_report['total']['total'] > 0 and key in current_report.keys():
                 pnl = current_report['pnl']['net']['total']
+                if pnl > 0:
+                    session_win += 1
             else:
                 pnl = 0
-            roi.append(pnl/init_protfolio_value * 100)
-        roi_avg = sum(roi) / len(roi)
-        return roi_avg
+            # roi.append(pnl/init_protfolio_value * 100)
+        # roi_avg = sum(roi) / len(roi)
+        session_win_rate = session_win/total_sessions
+        return session_win_rate
 
 
 def main():
     optimizer = Optimizer()
     optimizer.load_data()
-    optimizer.run(itr=4, batch=2)
+    optimizer.run(itr=10, batch=4)
     pass
 
 if __name__=="__main__":
