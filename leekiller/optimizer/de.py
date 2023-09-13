@@ -27,13 +27,16 @@ class DE:
         self.populations = []
         self._create_populations()
         # Log
-        self.log_objective = [[]] * self.number_of_populations
-        self.log_control_params = [[]] * self.number_of_populations
+        self.log_objective = [] 
+        self.log_control_params = []
+        self.log_info = []
         self.log_op_objective = 0
-        self.log_op_control_param = []
+        self.log_op_control_param = {}
+        self.log_op_info = {}
 
     def run(self, itr: int=60, batch: int=8):
         # itr: iteration times
+        check_frequecy = itr/10
         if len(self.populations) == 0:
             """ To do
 
@@ -48,25 +51,37 @@ class DE:
             print("itr: %s, batch: %s" %(itr, batch))
             print("==============================")
             while i < itr:
-                sampled_index = self._sample(batch)
+                sampled_index = self._sample(batch)         
                 with Pool() as pool:
-                    update, update_vector, update_objective = zip(*pool.map(self._iteration, sampled_index))
+                    update, update_vector, update_objective, update_info = zip(*pool.map(self._iteration, sampled_index))
+                self.log_objective.append(update_objective)
+                self.log_control_params.append(update_vector)
+                self.log_info.append(update_info)
                 for j in range(len(update)):
-                    self.log_objective[j].append(update_objective[j])
-                    self.log_control_params[j].append(update_vector[j])
                     if update[j]:
                         if update_objective[j] > self.log_op_objective:
                             self.log_op_objective = update_objective[j]
                             self.log_op_control_param = update_vector[j]
+                            self.log_op_info = update_info[j]
                             np.savez("out-op_control_param.npz", **self.log_op_control_param)
-                            print("# %s/%s iteration, optimized session_win_rate: %.6f%%" %(i+j, itr, self.log_op_objective))
+                            print("# %s/%s iteration, optimized objective: %.6f" %(i+j, itr, self.log_op_objective))
+                            print("op_control_param:", self.log_op_control_param)
+                            self._print_info(self.log_op_info)
+                            print("\n")
                 np.savez("out.npz", 
                          populations=self.populations,
                          objective=self.log_objective, 
                          control_params=self.log_control_params,
-                         op_objective=self.log_op_objective)
+                         info = self.log_info,
+                         op_objective=self.log_op_objective,
+                         op_info = self.log_op_info)
                 i = i + batch
-            print('Finish %s iterations, optimized session_win_rate: %.6f%%' %(i, self.log_op_objective))
+                if i % check_frequecy == 0 and not any(update):
+                    print("# %s/%s iteration, optimized objective: %.6f" %(i, itr, self.log_op_objective))
+                    print("op_control_param:", self.log_op_control_param, "\n")
+            print('Finish %s iterations, optimized objective: %.6f' %(i, self.log_op_objective))
+            print('op_control_param:', self.log_op_control_param)
+            self._print_info(self.log_op_info)
             print('==============================')            
 
     def load_data(self, data_path: str=None):
@@ -75,7 +90,7 @@ class DE:
         """
         raise NotImplementedError("No market data!")
 
-    def get_objective_value(self, control_params: dict) -> float:
+    def get_objective_value(self, control_params: dict) -> tuple[float, dict]:
         raise NotImplementedError("Objective value not defined!")
 
     def _create_populations(self):
@@ -90,6 +105,21 @@ class DE:
                 elif (key in self.control_params) and (key not in self.control_params_range):
                     population[key] = self.control_params[key]
             self.populations.append(population)
+
+    def _print_info(self, info: dict):
+        if info:
+            total_sesssions = info["Summary"]["total_sessions"]
+            print(info["Summary"])
+            for i in range(total_sesssions):
+                print("num_trade: {}, roi: {:.2f}%,  winrate: {:.2f}%, drawdown: {:.2f}%, sharp: {:.2f}."
+                      .format(info["num_trade"][i],
+                              info["roi"][i] * 100,
+                              info["winrate"][i] * 100,
+                              info["drawdown"][i],
+                              info["sharp"][i]))
+        else:
+            print("No update.")
+        return None
 
     def _sample(self, n, not_include=[]):
         # Randomly sample n populations for one differential evolution iteration
@@ -109,10 +139,10 @@ class DE:
         """
         mi_vector = self._mutation(di_index)
         ci_vector = self._crossover(di_index, mi_vector)
-        update, update_vector, update_objective = self._selection(di_index, ci_vector)
+        update, update_vector, update_objective, update_info = self._selection(di_index, ci_vector)
         if update:
             self.populations[di_index] = ci_vector
-        return update, update_vector, update_objective
+        return update, update_vector, update_objective, update_info
 
     def _mutation(self, di_index: int):
         """ DE mutation
@@ -161,6 +191,7 @@ class DE:
                         ci_vector[key].append(di_vector[key][i])
             else:
                 ci_vector[key] = di_vector[key]
+            ci_vector[key] = np.asarray(ci_vector[key])
         return ci_vector
 
     def _selection(self, di_index, ci_vector: dict):
@@ -168,16 +199,17 @@ class DE:
 
         """
         di_vector = self.populations[di_index]
-        di_objective = self.get_objective_value(di_vector)
-        ci_objective = self.get_objective_value(ci_vector)
-        print("di_obj: %.6f, ci_obj: %.6f" %(di_objective, ci_objective))
+        di_objective, di_info = self.get_objective_value(di_vector)
+        ci_objective, ci_info = self.get_objective_value(ci_vector)
         update = False
         update_vector = None
         update_objective = None
+        update_info = None
         if di_objective < ci_objective:
             update = True
             update_vector = ci_vector
             update_objective = ci_objective
+            update_info = ci_info
         else:
             update = False
-        return update, update_vector, update_objective
+        return update, update_vector, update_objective, update_info
