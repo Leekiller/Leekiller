@@ -6,7 +6,6 @@ from mutant.strategy import MutantBacktrader
 from leekiller.optimizer import DE
 
 class Optimizer(DE):
-
     def __init__(self):
         self.model = Mutant()
         self.control_params = self.model.params
@@ -48,7 +47,7 @@ class Optimizer(DE):
             start = np.random.choice(len(self.dataframe))
             while start > (len(self.dataframe) - backtest_length):
                 start = np.random.choice(len(self.dataframe))
-            end = start + backtest_length
+            end = start + backtest_length         
             df = self.dataframe.iloc[start:end]
             df = df.groupby(pd.Grouper(freq='5Min')).agg({"open": "first", 
                                                           "high": "max",
@@ -87,7 +86,7 @@ class Optimizer(DE):
 def main():
     optimizer = Optimizer()
     optimizer.load_data()
-    optimizer.run(itr=10, batch=4)
+    optimizer.run(itr=10, batch=1)
     pass
 
 if __name__=="__main__":
